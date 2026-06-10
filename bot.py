@@ -39,20 +39,6 @@ async def gpts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, text)
     context.user_data['mode'] = 'gpt'
 
-
-async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mode = context.user_data.get('mode')
-
-    if mode == 'gpt':
-        prompt = load_prompt('gpt')
-        answer = await chat_gpt.send_question(prompt, update.message.text)
-    elif mode == 'talk':
-        answer = await chat_gpt.add_message(update.message.text)
-    else:
-        answer = 'Виберіть режим з меню'
-
-    await send_text(update, context, answer)
-
 async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image(update, context, 'talk')
     text = load_message('talk')
@@ -77,12 +63,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 chat_gpt = ChatGptService(OPENAI_TOKEN)
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-app.add_handler(CommandHandler('start', start))
-app.add_handler(CommandHandler('random', random))
-app.add_handler(CommandHandler('gpt', gpts))
-app.add_handler(CommandHandler('talk', talk))
-app.add_handler(CommandHandler('quiz', quiz))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
+
 
 async def random_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
@@ -112,7 +93,44 @@ async def quiz_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     question = await chat_gpt.add_message(f'Тема: {topic}. Задай питання.')
     await send_text(update, context, question)
+async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mode = context.user_data.get('mode')
 
+    if mode == 'gpt':
+        prompt = load_prompt('gpt')
+        answer = await chat_gpt.send_question(prompt, update.message.text)
+        await send_text(update, context, answer)
+
+    elif mode == 'talk':
+        answer = await chat_gpt.add_message(update.message.text)
+        await send_text(update, context, answer)
+
+    elif mode == 'quiz':
+        score = context.user_data.get('quiz_score', 0)
+        answer = await chat_gpt.add_message(update.message.text)
+        context.user_data['quiz_score'] = score
+        await send_text_buttons(update, context, answer, {
+            'quiz_next': '➡️ Ще питання',
+            'quiz_change': '🔄 Змінити тему',
+            'start': '❌ Закінчити',
+        })
+
+    else:
+        await send_text(update, context, 'Виберіть режим з меню')
+
+async def quiz_next_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    topic = context.user_data.get('quiz_topic')
+    question = await chat_gpt.add_message('Задай наступне питання з тієї ж теми.')
+    await send_text(update, context, question)
+
+app.add_handler(CommandHandler('start', start))
+app.add_handler(CommandHandler('random', random))
+app.add_handler(CommandHandler('gpt', gpts))
+app.add_handler(CommandHandler('talk', talk))
+app.add_handler(CommandHandler('quiz', quiz))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
+app.add_handler(CallbackQueryHandler(quiz_next_callback, pattern='^quiz_next$'))
 app.add_handler(CallbackQueryHandler(random_callback, pattern='^random$'))
 app.add_handler(CallbackQueryHandler(start_callback, pattern='^start$'))
 app.add_handler(CallbackQueryHandler(talk_callback, pattern='^talk_'))
