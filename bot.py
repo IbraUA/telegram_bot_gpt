@@ -65,6 +65,15 @@ async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     context.user_data['mode'] = 'talk'
 
+async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send_image(update, context, 'quiz')
+    text = load_message('quiz')
+    await send_text_buttons(update, context, text, {
+        'quiz_prog': 'Програмування 🐍',
+        'quiz_math': 'Математика ⨊',
+        'quiz_biology': 'Біологія 🧬',
+        'quiz_universe': 'Всесвіт 🌌',
+    })
 
 chat_gpt = ChatGptService(OPENAI_TOKEN)
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
@@ -72,6 +81,7 @@ app.add_handler(CommandHandler('start', start))
 app.add_handler(CommandHandler('random', random))
 app.add_handler(CommandHandler('gpt', gpts))
 app.add_handler(CommandHandler('talk', talk))
+app.add_handler(CommandHandler('quiz', quiz))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
 
 async def random_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,9 +100,23 @@ async def talk_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, 'Вітаю! Задавай питання 👇')
     context.user_data['mode'] = 'talk'
 
+async def quiz_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    topic = update.callback_query.data
+    context.user_data['mode'] = 'quiz'
+    context.user_data['quiz_topic'] = topic
+    context.user_data['quiz_score'] = 0
+
+    prompt = load_prompt('quiz')
+    chat_gpt.set_prompt(prompt)
+
+    question = await chat_gpt.add_message(f'Тема: {topic}. Задай питання.')
+    await send_text(update, context, question)
+
 app.add_handler(CallbackQueryHandler(random_callback, pattern='^random$'))
 app.add_handler(CallbackQueryHandler(start_callback, pattern='^start$'))
 app.add_handler(CallbackQueryHandler(talk_callback, pattern='^talk_'))
+app.add_handler(CallbackQueryHandler(quiz_callback, pattern='^quiz_'))
 app.add_handler(CallbackQueryHandler(default_callback_handler))
 
 app.run_polling()
