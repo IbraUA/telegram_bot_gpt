@@ -16,10 +16,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'random': 'Дізнатися випадковий цікавий факт 🧠',
         'gpt': 'Задати питання чату GPT 🤖',
         'talk': 'Поговорити з відомою особистістю 👤',
-        'quiz': 'Взяти участь у квізі ❓'
-        # Додати команду в меню можна так:
-        # 'command': 'button text'
-
+        'quiz': 'Взяти участь у квізі ❓',
+        'translator': 'Перекласти на бажану мову',
     })
 
 async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -60,6 +58,25 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'quiz_biology': 'Біологія 🧬',
         'quiz_universe': 'Всесвіт 🌌',
     })
+
+async def translator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send_image(update, context, 'translator')
+    text = load_message('translator')
+    await send_text_buttons(update, context, text, {
+        'eng': "Вибрати переклад на англійську",
+        'ger': "Вибрати переклад на німецьку",
+        'esp': "Вибрати переклад на Іспанську",
+    })
+
+async def translator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    language = update.callback_query.data
+    prompt = load_prompt(f"{language}")
+    chat_gpt.set_prompt(prompt)
+    await send_image(update, context, language)
+    await send_text(update, context, 'Вітаю!  Пиши тут, що ти хочеш перекласти 👇')
+    context.user_data['mode'] = 'translator'
+
 
 chat_gpt = ChatGptService(OPENAI_TOKEN)
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
@@ -115,6 +132,13 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'start': '❌ Закінчити',
         })
 
+    elif mode == 'translator':
+        answer = await chat_gpt.add_message(update.message.text)
+        await send_text_buttons(update, context, answer, {
+            'lang_change': 'Змінити мову',
+            'start': '❌ Закінчити',
+        })
+
     else:
         await send_text(update, context, 'Виберіть режим з меню')
 
@@ -124,17 +148,31 @@ async def quiz_next_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     question = await chat_gpt.add_message('Задай наступне питання з тієї ж теми.')
     await send_text(update, context, question)
 
+async def lang_change_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    text = load_message('translator')
+    await send_text_buttons(update, context, text, {
+        'eng': "Вибрати переклад на англійську",
+        'ger': "Вибрати переклад на німецьку",
+        'esp': "Вибрати переклад на Іспанську",
+    })
+
 app.add_handler(CommandHandler('start', start))
 app.add_handler(CommandHandler('random', random))
 app.add_handler(CommandHandler('gpt', gpts))
 app.add_handler(CommandHandler('talk', talk))
 app.add_handler(CommandHandler('quiz', quiz))
+app.add_handler(CommandHandler('translator', translator))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
 app.add_handler(CallbackQueryHandler(quiz_next_callback, pattern='^quiz_next$'))
 app.add_handler(CallbackQueryHandler(random_callback, pattern='^random$'))
 app.add_handler(CallbackQueryHandler(start_callback, pattern='^start$'))
 app.add_handler(CallbackQueryHandler(talk_callback, pattern='^talk_'))
 app.add_handler(CallbackQueryHandler(quiz_callback, pattern='^quiz_'))
+app.add_handler(CallbackQueryHandler(translator_callback, pattern='^eng$'))
+app.add_handler(CallbackQueryHandler(translator_callback, pattern='^ger$'))
+app.add_handler(CallbackQueryHandler(translator_callback, pattern='^esp$'))
+app.add_handler(CallbackQueryHandler(lang_change_callback, pattern='^lang_change$'))
 app.add_handler(CallbackQueryHandler(default_callback_handler))
 
 app.run_polling()
