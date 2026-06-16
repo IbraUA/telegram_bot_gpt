@@ -136,32 +136,26 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'start': '❌ Закінчити',
         })
 
-    elif mode == 'translator':
-        answer = await chat_gpt.add_message(update.message.text)
-        await send_text_buttons(update, context, answer, {
-            'lang_change': 'Змінити мову',
-            'start': '❌ Закінчити',
-        })
 
     elif mode == 'vocab':
         index = context.user_data.get('train_index', 0)
         words = context.user_data.get('words', [])
-        current_word = words[index]  # додай
-        answer = await chat_gpt.add_message(  # заміни цей рядок
+        current_word = words[index]
+        answer = await chat_gpt.add_message(
             f'Слово для перекладу: "{current_word}". Моя відповідь: "{update.message.text}". Перевір правильність.'
         )
         await send_text(update, context, answer)
         context.user_data['train_index'] = index + 1
         if index + 1 < len(words):
-            next_word = words[index + 1]
-            await send_text(update, context, next_word)
+            next_question = await chat_gpt.add_message(
+                'Задай наступне питання по іншому слову зі списку, але не показуй переклад — я маю вгадати'
+            )
+            await send_text(update, context, next_question)
         else:
             await send_text_buttons(update, context, 'Тренування завершено!', {
-                'start': ' Закінчити'
+                'train_words': ' Тренуватись знову',
+                'start': ' Закінчити',
             })
-
-    else:
-        await send_text(update, context, 'Виберіть режим з меню')
 
 async def translator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
@@ -204,12 +198,13 @@ async def train_words_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await send_text(update, context, 'Спочатку вивчи хоча б одне слово!')
         return
     context.user_data['train_index'] = 0
-    context.user_data['train_score'] = 0
-    context.user_data['train_index'] = 0
-    context.user_data['train_score'] = 0
-    first_word = context.user_data['words'][0]
     context.user_data['mode'] = 'vocab'
-    await send_text(update, context, first_word)
+    words = context.user_data.get('words', [])
+    words_text = '\n'.join(words)
+    question = await chat_gpt.add_message(
+        f'Ось слова які ми вчили:\n{words_text}\n\nЗадай мені питання по одному з цих слів, але не показуй переклад — я маю сам його вгадати'
+    )
+    await send_text(update, context, question)
     await update.callback_query.answer()
 
 app.add_handler(CommandHandler('start', start))
