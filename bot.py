@@ -18,6 +18,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'talk': 'Поговорити з відомою особистістю 👤',
         'quiz': 'Взяти участь у квізі ❓',
         'translator': 'Перекласти на бажану мову',
+        'vocab': 'Мовний тренажер',
     })
 
 async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -25,7 +26,7 @@ async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, text)
 
     prompt = load_prompt('random')
-    answer = await chat_gpt.send_question(prompt, '')
+    answer = await chat_gpt.send_question(prompt, 'Розкажи цікавий факт')
 
     await send_text_buttons(update, context, answer, {
         'random': 'Хочу ще факт 🧠',
@@ -68,19 +69,21 @@ async def translator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'esp': "Вибрати переклад на Іспанську",
     })
 
-async def translator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    language = update.callback_query.data
-    prompt = load_prompt(f"{language}")
-    chat_gpt.set_prompt(prompt)
-    await send_image(update, context, language)
-    await send_text(update, context, 'Вітаю!  Пиши тут, що ти хочеш перекласти 👇')
-    context.user_data['mode'] = 'translator'
-
+async def vocab(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await send_image(update, context, 'vocab')
+    prompt = load_prompt('vocab')
+    answer = await chat_gpt.send_question(prompt, 'дай будь ласка нове слово для вивчення')
+    if 'words' not in context.user_data:
+        context.user_data['words'] = []
+    context.user_data['words'].append(answer)
+    await send_text_buttons(update, context, answer, {
+        'next_word': "Хочу ще слово",
+        'train_words': "Давай нових слів, потренуємось",
+        'start': "Закінчити",
+    })
 
 chat_gpt = ChatGptService(OPENAI_TOKEN)
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
 
 async def random_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
@@ -110,6 +113,7 @@ async def quiz_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     question = await chat_gpt.add_message(f'Тема: {topic}. Задай питання.')
     await send_text(update, context, question)
+
 async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get('mode')
 
@@ -139,8 +143,34 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'start': '❌ Закінчити',
         })
 
+    elif mode == 'vocab':
+        index = context.user_data.get('train_index', 0)
+        words = context.user_data.get('words', [])
+        current_word = words[index]  # додай
+        answer = await chat_gpt.add_message(  # заміни цей рядок
+            f'Слово для перекладу: "{current_word}". Моя відповідь: "{update.message.text}". Перевір правильність.'
+        )
+        await send_text(update, context, answer)
+        context.user_data['train_index'] = index + 1
+        if index + 1 < len(words):
+            next_word = words[index + 1]
+            await send_text(update, context, next_word)
+        else:
+            await send_text_buttons(update, context, 'Тренування завершено!', {
+                'start': ' Закінчити'
+            })
+
     else:
         await send_text(update, context, 'Виберіть режим з меню')
+
+async def translator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    language = update.callback_query.data
+    prompt = load_prompt(f"{language}")
+    chat_gpt.set_prompt(prompt)
+    await send_image(update, context, language)
+    await send_text(update, context, 'Вітаю!  Пиши тут, що ти хочеш перекласти 👇')
+    context.user_data['mode'] = 'translator'
 
 async def quiz_next_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
@@ -157,12 +187,38 @@ async def lang_change_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         'esp': "Вибрати переклад на Іспанську",
     })
 
+async def next_word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    question = await chat_gpt.add_message('Давай наступне слово для вивчення')
+    context.user_data['words'].append(question)
+    await send_text_buttons(update, context, question, {
+        'next_word': "Хочу ще слово",
+        'train_words': "Давай нових слів, потренуємось",
+        'start': "Закінчити",
+    })
+
+async def train_words_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    chat_gpt.set_prompt(load_prompt('vocab'))
+    if not context.user_data.get('words'):
+        await send_text(update, context, 'Спочатку вивчи хоча б одне слово!')
+        return
+    context.user_data['train_index'] = 0
+    context.user_data['train_score'] = 0
+    context.user_data['train_index'] = 0
+    context.user_data['train_score'] = 0
+    first_word = context.user_data['words'][0]
+    context.user_data['mode'] = 'vocab'
+    await send_text(update, context, first_word)
+    await update.callback_query.answer()
+
 app.add_handler(CommandHandler('start', start))
 app.add_handler(CommandHandler('random', random))
 app.add_handler(CommandHandler('gpt', gpts))
 app.add_handler(CommandHandler('talk', talk))
 app.add_handler(CommandHandler('quiz', quiz))
 app.add_handler(CommandHandler('translator', translator))
+app.add_handler(CommandHandler('vocab', vocab))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
 app.add_handler(CallbackQueryHandler(quiz_next_callback, pattern='^quiz_next$'))
 app.add_handler(CallbackQueryHandler(random_callback, pattern='^random$'))
@@ -173,6 +229,8 @@ app.add_handler(CallbackQueryHandler(translator_callback, pattern='^eng$'))
 app.add_handler(CallbackQueryHandler(translator_callback, pattern='^ger$'))
 app.add_handler(CallbackQueryHandler(translator_callback, pattern='^esp$'))
 app.add_handler(CallbackQueryHandler(lang_change_callback, pattern='^lang_change$'))
+app.add_handler(CallbackQueryHandler(train_words_callback, pattern='^train_words$'))
+app.add_handler(CallbackQueryHandler(next_word_callback, pattern='^next_word$'))
 app.add_handler(CallbackQueryHandler(default_callback_handler))
 
 app.run_polling()
