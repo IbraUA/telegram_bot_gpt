@@ -116,7 +116,6 @@ async def quiz_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mode = context.user_data.get('mode')
-
     if mode == 'gpt':
         prompt = load_prompt('gpt')
         answer = await chat_gpt.send_question(prompt, update.message.text)
@@ -135,8 +134,6 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quiz_change': '🔄 Змінити тему',
             'start': '❌ Закінчити',
         })
-
-
     elif mode == 'vocab':
         index = context.user_data.get('train_index', 0)
         words = context.user_data.get('words', [])
@@ -156,6 +153,17 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'train_words': ' Тренуватись знову',
                 'start': ' Закінчити',
             })
+    elif mode == 'translator':
+        answer = await chat_gpt.add_message(update.message.text)
+        await send_text_buttons(update, context, answer, {
+            'lang_change': 'Змінити мову',
+            'start': '❌ Закінчити',
+        })
+
+    else:
+        await send_text(update, context, 'Виберіть режим з меню')
+
+
 
 async def translator_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
