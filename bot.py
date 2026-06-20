@@ -125,11 +125,15 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         answer = await chat_gpt.add_message(update.message.text)
         await send_text(update, context, answer)
 
+
     elif mode == 'quiz':
         score = context.user_data.get('quiz_score', 0)
         answer = await chat_gpt.add_message(update.message.text)
+        if "Правильно" in answer:
+            score += 1
         context.user_data['quiz_score'] = score
-        await send_text_buttons(update, context, answer, {
+
+        await send_text_buttons(update, context, answer + f"\n\nРахунок: {score}", {
             'quiz_next': '➡️ Ще питання',
             'quiz_change': '🔄 Змінити тему',
             'start': '❌ Закінчити',
@@ -180,6 +184,10 @@ async def quiz_next_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     question = await chat_gpt.add_message('Задай наступне питання з тієї ж теми.')
     await send_text(update, context, question)
 
+async def quiz_change_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await quiz(update, context)
+
 async def lang_change_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     text = load_message('translator')
@@ -227,6 +235,7 @@ app.add_handler(CallbackQueryHandler(quiz_next_callback, pattern='^quiz_next$'))
 app.add_handler(CallbackQueryHandler(random_callback, pattern='^random$'))
 app.add_handler(CallbackQueryHandler(start_callback, pattern='^start$'))
 app.add_handler(CallbackQueryHandler(talk_callback, pattern='^talk_'))
+app.add_handler(CallbackQueryHandler(quiz_change_callback, pattern='^quiz_change$'))
 app.add_handler(CallbackQueryHandler(quiz_callback, pattern='^quiz_'))
 app.add_handler(CallbackQueryHandler(translator_callback, pattern='^eng$'))
 app.add_handler(CallbackQueryHandler(translator_callback, pattern='^ger$'))
