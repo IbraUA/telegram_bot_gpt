@@ -32,6 +32,7 @@ async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'random': 'Хочу ще факт 🧠',
         'start': 'Закінчити'
     })
+
 async def gpts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image(update, context, 'gpt')
     text = load_message('gpt')
@@ -78,7 +79,7 @@ async def vocab(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['words'].append(answer)
     await send_text_buttons(update, context, answer, {
         'next_word': "Хочу ще слово",
-        'train_words': "Давай нових слів, потренуємось",
+        'train_words': "Давай перевіримо, що ми вивчили!",
         'start': "Закінчити",
     })
 
@@ -138,6 +139,7 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quiz_change': '🔄 Змінити тему',
             'start': '❌ Закінчити',
         })
+
     elif mode == 'vocab':
         index = context.user_data.get('train_index', 0)
         words = context.user_data.get('words', [])
@@ -157,6 +159,7 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'train_words': ' Тренуватись знову',
                 'start': ' Закінчити',
             })
+
     elif mode == 'translator':
         answer = await chat_gpt.add_message(update.message.text)
         await send_text_buttons(update, context, answer, {

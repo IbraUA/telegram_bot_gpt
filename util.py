@@ -77,16 +77,24 @@ async def hide_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # завантажує повідомлення з папки /resources/messages/
 def load_message(name):
-    with open("resources/messages/" + name + ".txt", "r",
-              encoding="utf8") as file:
-        return file.read()
+    try:
+        with open("resources/messages/" + name + ".txt", "r",
+                  encoding="utf8") as file:
+            return file.read()
+    except FileNotFoundError:
+        print(f"Файл {name}.txt не знайдено")
+        return "Повідомлення тимчасово не доступне"
 
 
 # завантажує промпт з папки /resources/messages/
 def load_prompt(name):
-    with open("resources/prompts/" + name + ".txt", "r",
-              encoding="utf8") as file:
-        return file.read()
+    try:
+        with open("resources/prompts/" + name + ".txt", "r",
+                  encoding="utf8") as file:
+            return file.read()
+    except FileNotFoundError:
+        print(f"Файл {name}.txt не знайдено")
+        return "Поки це все"
 
 
 async def default_callback_handler(update: Update,
